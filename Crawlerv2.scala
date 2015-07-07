@@ -2,7 +2,7 @@ import java.net.{URL, URLDecoder}
 import java.io.PrintWriter
 import scala.io.BufferedSource
 import scala.concurrent._
-import scala.util.{Success, Failure}
+import scala.util.{Try, Success, Failure}
 import ExecutionContext.Implicits.global
 import scala.collection.mutable.ArrayBuffer
 import play.api.libs.json._
@@ -85,8 +85,6 @@ object Crawler {
       lastPat(character).r.findFirstMatchIn(source).map(_.group(1).toInt - 20)
     }
 
-  // val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-  // getMaxPageNumberForChar(c).getOrElse(1))
   def process(c: Char, start: Int, end: Int ) = {
     println(s"process for $c from $start to $end")
     val result: List[String] = (for (i <- start to end) yield {
@@ -106,7 +104,7 @@ object Crawler {
 
         var counter = 0
         val refList = maybeRefList.get
-        var maxWordInPage = refList.toArray.length
+        val maxWordInPage = refList.toArray.length
         val terms: List[JsObject] = refList.map { url => 
           counter += 1
           val maybeListOfTerm = getListOfTermDefsByURL(url, counter, maxWordInPage)
@@ -120,13 +118,13 @@ object Crawler {
         }
 
         val json = JsArray(terms)
-        val fileIsCreated = Option(new PrintWriter(s"dict/$c$i.json")).map{ p => 
+        val fileIsCreated = Option(new PrintWriter(s"dict/$c/$c$i.json")).map{ p => 
           p.write(json.toString)
           p.close
           true
         }
 
-        val res = s"Is dict/$c$i.json created? -> ${fileIsCreated.getOrElse(false)}\n"
+        val res = s"Is dict/$c/$c$i.json created? -> ${fileIsCreated.getOrElse(false)}\n"
         print(res)
 
         res
@@ -144,33 +142,37 @@ object CrawlerTest {
   def main(args: Array[String]) {
     var listOfFutures: ArrayBuffer[Future[List[String]]] = new ArrayBuffer()
 
-    val c = args(0)
+    val c = args(0)(0)
+    val start = Try(args(1).toInt).getOrElse(1)
+    val maxPageNumber = Try(args(2).toInt).getOrElse(Crawler.getMaxPageNumberForChar(c).getOrElse(-1))
+
     val resLog = new PrintWriter(s"result.log")
 
-    val maxPageNumber = Crawler.getMaxPageNumberForChar(c).getOrElse(-1)
-    println(s"The total amount of pages is $maxPageNumber")
-    for (i <- 8 to maxPageNumber) listOfFutures += Future { 
+    println(s"The total amount of pages is ${maxPageNumber - start + 1}")
+    for (i <- start to maxPageNumber) listOfFutures += Future { 
       Crawler.process(c, i, i)
     }
 
     var successCounter = 0
     
+    listOfFutures foreach (_.onComplete {
+      case Success(list) =>
+        successCounter += 1
+        list foreach resLog.write
+        resLog.flush
+      case Failure(t) => resLog.write(s"An error has occured: ${t.getMessage}")
+    })
+
     while(!listOfFutures.isEmpty) {
-      listOfFutures.foreach { future =>
-        if(future != null && future.isCompleted) { future.value.get match {
-          case Success(list) =>
-            successCounter += 1
-            list foreach resLog.write _
-          case Failure(t) => println("An error has occured: " + t.getMessage)
-          }
-          listOfFutures -= future
-        }
-      }
+      println(s"We have ${listOfFutures.length} futures")
+
+      listOfFutures = listOfFutures filterNot (cf => cf == null || cf.isCompleted)
+
       //checks which futures are completed every half-a-second
-      Thread.sleep(500)
+      Thread.sleep(60000)
     }
 
-    resLog write s"The number of successed page is $successCounter and total amount of pages is $maxPageNumber"
+    resLog write s"The number of successed page is $successCounter and total amount of pages is ${maxPageNumber - start + 1}"
     resLog.close
   }
 }
