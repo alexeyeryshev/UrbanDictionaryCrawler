@@ -146,7 +146,7 @@ object CrawlerTest {
     val start = Try(args(1).toInt).getOrElse(1)
     val maxPageNumber = Try(args(2).toInt).getOrElse(Crawler.getMaxPageNumberForChar(c).getOrElse(-1))
 
-    val resLog = new PrintWriter(s"result.log")
+    val resLog = new PrintWriter(s"result$c.log")
 
     println(s"The total amount of pages is ${maxPageNumber - start + 1}")
     for (i <- start to maxPageNumber) listOfFutures += Future { 
