@@ -82,7 +82,7 @@ object Crawler {
 
   def getMaxPageNumberForChar(character: Char): Option[Int] = 
     getUrlSource(s"http://www.urbandictionary.com/browse.php?character=$character&amp;page=1").flatMap { source => 
-      lastPat(character).r.findFirstMatchIn(source).map(_.group(1).toInt - 20)
+      lastPat(character).r.findFirstMatchIn(source).map(_.group(1).toInt - 5)
     }
 
   def process(c: Char, start: Int, end: Int ) = {
